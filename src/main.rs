@@ -1,7 +1,10 @@
 mod youtube;
+mod ttrss;
+mod opml_converter;
 
 use crate::youtube::get_subscriptions;
 use std::path::PathBuf;
+use crate::opml_converter::convert_to_opml_string;
 
 pub type TlsClient = hyper::Client<TlsConnector, hyper::Body>;
 pub type TlsConnector = hyper_rustls::HttpsConnector<hyper::client::HttpConnector>;
@@ -12,9 +15,11 @@ async fn main() {
 
     let subs = get_subscriptions(&get_config_path(), https).await;
 
-    for s in subs {
-        println!("{}", s.title)
-    }
+    // for s in subs {
+    //     println!("{}", s.title)
+    // }
+
+    println!("{}", convert_to_opml_string("Youtube subscriptions", &subs));
 }
 
 fn https_client() -> TlsClient {

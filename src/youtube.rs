@@ -81,14 +81,14 @@ pub struct YoutubeSubscription {
 }
 
 impl YoutubeSubscription {
-    fn channel_feed_url(&self) -> String {
+    pub fn channel_feed_url(&self) -> String {
         format!(
             "https://www.youtube.com/feeds/videos.xml?channel_id={}",
             self.channel
         )
     }
 
-    fn channel_url(&self) -> String {
+    pub fn channel_url(&self) -> String {
         format!("https://www.youtube.com/channel/{}", self.channel)
     }
 

@@ -7,10 +7,10 @@ edition = "2018"
 
 [dependencies]
 yup-oauth2 = "5.1.0"
-tokio = { version = "1.8.1", features = ["full"] }
+tokio = { version = "1.9.0", features = ["full"] }
 dirs = "3.0.2"
-async-google-apis-common = "0.3.0"
-serde = "1.0.126"
+serde = "1.0.127"
 hyper-rustls = "0.22.1"
-hyper = "0.14.10"
+hyper = "0.14.11"
 anyhow = "1.0.42"
+google-youtube3 = "2.0.4+20210330"

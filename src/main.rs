@@ -1,9 +1,10 @@
 mod youtube;
-mod youtube_v3_types;
 
-use async_google_apis_common as common;
 use crate::youtube::get_subscriptions;
 use std::path::PathBuf;
+
+pub type TlsClient = hyper::Client<TlsConnector, hyper::Body>;
+pub type TlsConnector = hyper_rustls::HttpsConnector<hyper::client::HttpConnector>;
 
 #[tokio::main]
 async fn main() {
@@ -16,10 +17,9 @@ async fn main() {
     }
 }
 
-fn https_client() -> common::TlsClient {
+fn https_client() -> TlsClient {
     let conn = hyper_rustls::HttpsConnector::with_native_roots();
-    let cl = hyper::Client::builder().build(conn);
-    cl
+    hyper::Client::builder().build(conn)
 }
 
 fn get_config_path() -> PathBuf {

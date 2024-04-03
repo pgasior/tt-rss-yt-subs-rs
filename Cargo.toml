@@ -6,12 +6,15 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-yup-oauth2 = "5.1.0"
-tokio = { version = "1.9.0", features = ["full"] }
-dirs = "3.0.2"
-serde = { version = "1.0.127", fetaures = ["derive"] }
-hyper-rustls = "0.22.1"
-hyper = "0.14.11"
-anyhow = "1.0.42"
-google-youtube3 = "2.0.4+20210330"
-quick-xml = { version = "0.21", features = [ "serialize" ] }
+yup-oauth2 = "8.3.3"
+tokio = { version = "1.37.0", features = ["full"] }
+dirs = "5.0.1"
+serde = { version = "1.0.197", fetaures = ["derive"] }
+serde_json = "1.0.115"
+hyper-rustls = "0.25.0"
+hyper = "0.14.28"
+# hyper-rustls = "0.27.0"
+# hyper = "1.2.0"
+anyhow = "1.0.81"
+google-youtube3 = "5.0.4+20240303"
+quick-xml = { version = "0.31", features = [ "serialize" ] }

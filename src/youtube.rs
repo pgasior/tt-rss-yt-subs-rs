@@ -3,6 +3,9 @@ use google_youtube3::api::Subscription;
 use google_youtube3::YouTube;
 use std::path::Path;
 use yup_oauth2::{InstalledFlowAuthenticator, InstalledFlowReturnMethod};
+use hyper::client::HttpConnector;
+use hyper_rustls::HttpsConnector;
+
 
 pub async fn get_subscriptions(config_path: &Path, https: TlsClient) -> Vec<YoutubeSubscription> {
     let secret =
@@ -18,11 +21,11 @@ pub async fn get_subscriptions(config_path: &Path, https: TlsClient) -> Vec<Yout
         .expect("InstalledFlowAuthenticator failed to build");
 
     let hub = YouTube::new(https, auth);
-    return fetch_all_subscriptions(&hub).await;
+    fetch_all_subscriptions(&hub).await
 }
 
 pub async fn fetch_all_subscriptions(
-    service: &google_youtube3::YouTube,
+    service: &google_youtube3::YouTube<HttpsConnector<HttpConnector>>,
 ) -> Vec<YoutubeSubscription> {
     let mut page_token = None;
     let mut subscriptions: Vec<YoutubeSubscription> = Vec::new();
@@ -40,7 +43,7 @@ pub async fn fetch_all_subscriptions(
 }
 
 async fn fetch_subscriptions_page(
-    service: &google_youtube3::YouTube,
+    service: &google_youtube3::YouTube<HttpsConnector<HttpConnector>>,
     page: &Option<String>,
 ) -> SubscriptionPageResponse {
     let mut call = service

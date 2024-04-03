@@ -2,12 +2,15 @@ mod youtube;
 mod ttrss;
 mod opml_converter;
 
+use hyper::{client::HttpConnector, Client};
+use hyper_rustls::HttpsConnector;
+
 use crate::youtube::get_subscriptions;
 use std::path::PathBuf;
 use crate::opml_converter::convert_to_opml_string;
 
-pub type TlsClient = hyper::Client<TlsConnector, hyper::Body>;
-pub type TlsConnector = hyper_rustls::HttpsConnector<hyper::client::HttpConnector>;
+pub type TlsClient = Client<HttpsConnector<HttpConnector>>;
+// pub type TlsConnector = hyper_rustls::HttpsConnector<hyper::client::HttpConnector>;
 
 #[tokio::main]
 async fn main() {
@@ -22,9 +25,9 @@ async fn main() {
     println!("{}", convert_to_opml_string("Youtube subscriptions", &subs));
 }
 
-fn https_client() -> TlsClient {
-    let conn = hyper_rustls::HttpsConnector::with_native_roots();
-    hyper::Client::builder().build(conn)
+fn https_client() -> Client<HttpsConnector<HttpConnector>>{
+    let conn = hyper_rustls::HttpsConnectorBuilder::new().with_native_roots().expect("no native root CA certificates found").https_or_http().enable_http1().build();
+    Client::builder().build(conn)
 }
 
 fn get_config_path() -> PathBuf {

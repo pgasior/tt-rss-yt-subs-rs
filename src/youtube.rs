@@ -1,83 +1,108 @@
-use crate::TlsClient;
-use google_youtube3::api::Subscription;
-use google_youtube3::YouTube;
+use anyhow::{Context, Result};
+use indicatif::ProgressBar;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 use yup_oauth2::{InstalledFlowAuthenticator, InstalledFlowReturnMethod};
-use hyper::client::HttpConnector;
-use hyper_rustls::HttpsConnector;
 
+const CHANNELS_URL: &str = "https://youtube.googleapis.com/youtube/v3/subscriptions";
 
-pub async fn get_subscriptions(config_path: &Path, https: TlsClient) -> Vec<YoutubeSubscription> {
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ListSubscriptionResponse {
+    items: Vec<Item>,
+    page_info: PageInfo,
+    next_page_token: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PageInfo {
+    total_results: i32,
+    results_per_page: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Item {
+    id: String,
+    snippet: Snippet,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Snippet {
+    title: String,
+    channel_id: String,
+}
+
+pub async fn get_api_key(config_path: &Path) -> Result<String> {
     let secret =
         yup_oauth2::read_application_secret(Path::new(config_path).join("client_secret.json"))
             .await
             .expect("unable to load secret");
 
     let auth = InstalledFlowAuthenticator::builder(secret, InstalledFlowReturnMethod::HTTPRedirect)
-        .persist_tokens_to_disk("tokencache.json")
-        .hyper_client(https.clone())
+        .persist_tokens_to_disk(Path::new(config_path).join("tokencache.json"))
+        // .hyper_client(https.clone())
         .build()
-        .await
-        .expect("InstalledFlowAuthenticator failed to build");
-
-    let hub = YouTube::new(https, auth);
-    fetch_all_subscriptions(&hub).await
+        .await?;
+    let token = auth
+        .token(&["https://www.googleapis.com/auth/youtube.readonly"])
+        .await?;
+    Ok(token.token().context("Failed to get token")?.to_string())
 }
 
-pub async fn fetch_all_subscriptions(
-    service: &google_youtube3::YouTube<HttpsConnector<HttpConnector>>,
-) -> Vec<YoutubeSubscription> {
-    let mut page_token = None;
-    let mut subscriptions: Vec<YoutubeSubscription> = Vec::new();
+pub async fn get_subscribed_channels(
+    config_path: &Path,
+    progress: &ProgressBar,
+) -> Result<Vec<YoutubeSubscription>> {
+    let mut all_items: Vec<YoutubeSubscription> = Vec::new();
+    let mut next_page_token: Option<String> = None;
+
+    let api_key = get_api_key(config_path).await?;
+
     loop {
-        let mut page = fetch_subscriptions_page(service, &page_token).await;
-        page_token = page.next_page_token;
-        subscriptions.append(&mut page.subs);
-        println!("\rFetching... {} / {}", subscriptions.len(), page.total);
-        if page_token.is_none() {
+        let client = reqwest::Client::new();
+        let url = match next_page_token {
+            Some(ref token) => format!(
+                "{}?part=snippet&mine=true&maxResults=50&pageToken={}",
+                CHANNELS_URL, token
+            ),
+            None => format!("{}?part=snippet&mine=true&maxResults=50", CHANNELS_URL),
+        };
+        let res = client
+            .get(&url)
+            .bearer_auth(&api_key)
+            // .header("Authorization", format!("Bearer {}", api_key))
+            .send()
+            .await?;
+        let status = res.status();
+        let body = res.text().await?;
+        // println!("{}", body);
+        if !status.is_success() {
+            println!("Failed to fetch subscriptions: {}", body);
+            return Err(anyhow::anyhow!("Failed to fetch subscriptions"));
+        }
+        let response: ListSubscriptionResponse = serde_json::from_str(&body)?;
+
+        progress.set_length(response.page_info.total_results as u64);
+
+        all_items.extend(response.items.iter().map(|item| YoutubeSubscription {
+            title: item.snippet.title.clone(),
+            channel: item.snippet.channel_id.clone(),
+        }));
+        next_page_token = response.next_page_token;
+
+        if next_page_token.is_none() {
             break;
         }
+
+        progress.set_position(all_items.len() as u64);
     }
 
-    subscriptions
+    Ok(all_items)
 }
 
-async fn fetch_subscriptions_page(
-    service: &google_youtube3::YouTube<HttpsConnector<HttpConnector>>,
-    page: &Option<String>,
-) -> SubscriptionPageResponse {
-    let mut call = service
-        .subscriptions()
-        .list(&vec!["snippet".into(), "contentDetails".into()])
-        .mine(true)
-        .max_results(50)
-        .order("alphabetical");
-    if let Some(p) = page {
-        call = call.page_token(p);
-    }
-
-    let (_, result) = call.doit().await.expect("Failed to fetch subscriptions");
-
-    let subscriptions: Vec<YoutubeSubscription> = result
-        .items
-        .expect("No response")
-        .into_iter()
-        .filter_map(|sub| YoutubeSubscription::from_response(&sub))
-        .collect();
-
-    SubscriptionPageResponse {
-        subs: subscriptions,
-        next_page_token: result.next_page_token,
-        total: result.page_info.unwrap().total_results.unwrap(),
-    }
-}
-
-struct SubscriptionPageResponse {
-    subs: Vec<YoutubeSubscription>,
-    next_page_token: Option<String>,
-    total: i32,
-}
-
+#[derive(Debug)]
 pub struct YoutubeSubscription {
     pub title: String,
     pub channel: String,
@@ -95,19 +120,19 @@ impl YoutubeSubscription {
         format!("https://www.youtube.com/channel/{}", self.channel)
     }
 
-    fn from_response(response: &Subscription) -> Option<YoutubeSubscription> {
-        let title = response.snippet.as_ref()?.title.as_ref()?;
-        let channel = response
-            .snippet
-            .as_ref()?
-            .resource_id
-            .as_ref()?
-            .channel_id
-            .as_ref()?;
+    // fn from_response(response: &Subscription) -> Option<YoutubeSubscription> {
+    //     let title = response.snippet.as_ref()?.title.as_ref()?;
+    //     let channel = response
+    //         .snippet
+    //         .as_ref()?
+    //         .resource_id
+    //         .as_ref()?
+    //         .channel_id
+    //         .as_ref()?;
 
-        Some(YoutubeSubscription {
-            title: title.to_string(),
-            channel: channel.to_string(),
-        })
-    }
+    //     Some(YoutubeSubscription {
+    //         title: title.to_string(),
+    //         channel: channel.to_string(),
+    //     })
+    // }
 }

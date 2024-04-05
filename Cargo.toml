@@ -11,10 +11,12 @@ tokio = { version = "1.37.0", features = ["full"] }
 dirs = "5.0.1"
 serde = { version = "1.0.197", fetaures = ["derive"] }
 serde_json = "1.0.115"
-hyper-rustls = "0.25.0"
-hyper = "0.14.28"
+reqwest = "0.12.2"
+# hyper-rustls = "0.25.0"
+# hyper = "0.14.28"
 # hyper-rustls = "0.27.0"
 # hyper = "1.2.0"
 anyhow = "1.0.81"
-google-youtube3 = "5.0.4+20240303"
+# google-youtube3 = "5.0.4+20240303"
 quick-xml = { version = "0.31", features = [ "serialize" ] }
+indicatif = "0.17.8"

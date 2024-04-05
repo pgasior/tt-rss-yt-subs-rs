@@ -1,33 +1,30 @@
-mod youtube;
-mod ttrss;
 mod opml_converter;
+mod ttrss;
+mod youtube;
+use indicatif::{ProgressBar, ProgressStyle};
 
-use hyper::{client::HttpConnector, Client};
-use hyper_rustls::HttpsConnector;
-
-use crate::youtube::get_subscriptions;
-use std::path::PathBuf;
 use crate::opml_converter::convert_to_opml_string;
-
-pub type TlsClient = Client<HttpsConnector<HttpConnector>>;
-// pub type TlsConnector = hyper_rustls::HttpsConnector<hyper::client::HttpConnector>;
+use crate::youtube::get_subscribed_channels;
+use anyhow::Result;
+use std::path::PathBuf;
 
 #[tokio::main]
-async fn main() {
-    let https = https_client();
-
-    let subs = get_subscriptions(&get_config_path(), https).await;
+async fn main() -> Result<()> {
+    let pb = ProgressBar::new(0);
+    pb.set_style(
+        ProgressStyle::with_template(
+            "[{elapsed_precise}/{eta_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg}",
+        )
+        .unwrap(),
+    );
+    let subs = get_subscribed_channels(&get_config_path(), &pb).await?;
 
     // for s in subs {
-    //     println!("{}", s.title)
+    //     println!("{:?}", s);
     // }
 
     println!("{}", convert_to_opml_string("Youtube subscriptions", &subs));
-}
-
-fn https_client() -> Client<HttpsConnector<HttpConnector>>{
-    let conn = hyper_rustls::HttpsConnectorBuilder::new().with_native_roots().expect("no native root CA certificates found").https_or_http().enable_http1().build();
-    Client::builder().build(conn)
+    Ok(())
 }
 
 fn get_config_path() -> PathBuf {

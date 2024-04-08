@@ -1,3 +1,4 @@
+mod config;
 mod opml_converter;
 mod ttrss;
 mod youtube;
@@ -10,6 +11,8 @@ use std::path::PathBuf;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let config_path = get_config_path();
+    let config = config::load_config(&config_path)?;
     let pb = ProgressBar::new(0);
     pb.set_style(
         ProgressStyle::with_template(
@@ -18,12 +21,9 @@ async fn main() -> Result<()> {
         .unwrap(),
     );
     let subs = get_subscribed_channels(&get_config_path(), &pb).await?;
-
-    // for s in subs {
-    //     println!("{:?}", s);
-    // }
-
-    println!("{}", convert_to_opml_string("Youtube subscriptions", &subs));
+    let opml = convert_to_opml_string(&config.app.category_name, &subs)?;
+    // println!("{}", opml);
+    ttrss::send_opml(&opml, config).await?;
     Ok(())
 }
 

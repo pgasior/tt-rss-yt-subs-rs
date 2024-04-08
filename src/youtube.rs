@@ -31,6 +31,13 @@ struct Item {
 #[serde(rename_all = "camelCase")]
 struct Snippet {
     title: String,
+    resource_id: Resource,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Resource {
+    kind: String,
     channel_id: String,
 }
 
@@ -64,10 +71,13 @@ pub async fn get_subscribed_channels(
         let client = reqwest::Client::new();
         let url = match next_page_token {
             Some(ref token) => format!(
-                "{}?part=snippet&mine=true&maxResults=50&pageToken={}",
+                "{}?part=snippet&mine=true&maxResults=50&order=alphabetical&pageToken={}",
                 CHANNELS_URL, token
             ),
-            None => format!("{}?part=snippet&mine=true&maxResults=50", CHANNELS_URL),
+            None => format!(
+                "{}?part=snippet&mine=true&order=alphabetical&maxResults=50",
+                CHANNELS_URL
+            ),
         };
         let res = client
             .get(&url)
@@ -84,19 +94,19 @@ pub async fn get_subscribed_channels(
         }
         let response: ListSubscriptionResponse = serde_json::from_str(&body)?;
 
-        progress.set_length(response.page_info.total_results as u64);
-
         all_items.extend(response.items.iter().map(|item| YoutubeSubscription {
             title: item.snippet.title.clone(),
-            channel: item.snippet.channel_id.clone(),
+            channel: item.snippet.resource_id.channel_id.clone(),
         }));
+        
+        progress.set_length(response.page_info.total_results as u64);
+        progress.set_position(all_items.len() as u64);
+
         next_page_token = response.next_page_token;
 
         if next_page_token.is_none() {
             break;
         }
-
-        progress.set_position(all_items.len() as u64);
     }
 
     Ok(all_items)
